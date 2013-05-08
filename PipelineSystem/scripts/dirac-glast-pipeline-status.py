@@ -3,7 +3,7 @@
 import xml.dom.minidom as xdom
 import sys, getopt, os, StringIO
 
-class logging:
+class logging(object):
     def __init__(self,ntuple):
         self.main_status = ntuple[0]
         self.major_status = ntuple[1]
@@ -11,7 +11,7 @@ class logging:
         self.time = ntuple[3]
         self.name = ntuple[4]
 
-class internalstatus:
+class internalstatus(object):
     def __init__(self,job_id,my_dict,**kwargs):
         self.id = job_id
         self.status = None
@@ -84,9 +84,10 @@ if __name__ == "__main__":
     Script.addDefaultOptionValue('/DIRAC/Security/UseServerCertificate','y')
     Script.parseCommandLine()
     #print specialOptions
-    from DIRAC.Core.DISET.RPCClient import RPCClient
+    from DIRAC.WorkloadManagementSystem.Client.JobMonitoringClient import JobMonitoringClient
     from DIRAC.Interfaces.API.Dirac import Dirac
     import DIRAC.Core.Utilities.Time as Time
+    from DIRAC.Core.Utilities.List import breakListIntoChunks
     # use stored certificates
     from DIRAC.FrameworkSystem.Client.ProxyManagerClient import gProxyManager
     from DIRAC.ConfigurationSystem.Client.Helpers.Operations import Operations
@@ -117,54 +118,49 @@ if __name__ == "__main__":
         firstChild = xmlfile.firstChild
     
     d = Dirac()
-    if not d['OK']:
-        gLogger.info(d["Message"])
-        gLogger.error("Error loading Dirac monitor")
-        dexit(1)
 
-    w = RPCClient("WorkloadManagement/JobMonitoring")
+    w = JobMonitoringClient()
     my_dict = {}
-    #my_dict['Status']=['Done','Completed','Stalled','Failed','Killed','Waiting','Running','Checking']
+    #Look at things that may change: no need to check Done and Failed as those statuses are final. Also, don't
+    # look at deleted (may happen) 
+    my_dict['Status']=['Completed','Stalled','Killed','Waiting','Running','Checking','Rescheduled','Matched']
     my_dict['Owner']=[user]
     if specialOptions.has_key("dayspassed"):
         delay = int(specialOptions["dayspassed"])
     else:
         delay = 3
     delTime = str( Time.dateTime() - delay * Time.day )
-    res = w.getJobs(my_dict,delTime)
+    res = w.getJobs(my_dict, delTime)
     
     if not res['OK']:
-        gLogger.info(res["Message"])
-        gLogger.error("Could not get list of running jobs.")
+        gLogger.info("Could not get list of running jobs:", res["Message"])
         dexit(1)
 
     job_list = res['Value']
+    status = {}
+    list_j_list = breakListIntoChunks(job_list, 1000)#We query per 1000 jobs at once
+    for j_list in list_j_list:
+        res = d.status(job_list)   
 
-    #for j in job_list:
-    res = d.status(job_list)   
+        if not res['OK']:
+            gLogger.error("Could not get status of j_list", res['Message'])
+            continue
+        status.update(res['Value'])
 
-    if not res['OK']:
-        gLogger.error(res['Message'])
-        gLogger.error("Could not get status of job_list")
-        dexit(1)
-
-    status = res['Value']
     statuses = []
     if not do_xml:
-        print('# ID\thostname\tStatus\tSubmitted\tStarted\tEnded\tCPUtime\tMemory')
-    for j in job_list:
-        status_j=status[int(j)]
+        gLogger.notice('# ID\thostname\tStatus\tSubmitted\tStarted\tEnded\tCPUtime\tMemory')
+    for j_list in job_list:
+        status_j= status[int(j)]
         res = w.getJobParameters(int(j))
         if not res['OK']:
-            gLogger.error(res['Message'])
-            gLogger.error("Could not get Job Parameters")
+            gLogger.error("Could not get Job Parameters:", res['Message'])
             dexit(1)
         status_j.update(res['Value'])
         res = w.getJobLoggingInfo(int(j))
         #print res
         if not res['OK']:
-            gLogger.error(res['Message'])
-            gLogger.error("Could not get JobLoggingInfo")
+            gLogger.error("Could not get JobLoggingInfo", res['Message'])
             dexit(1)
         logs = res['Value']
         logging_obj = []
@@ -184,7 +180,7 @@ if __name__ == "__main__":
         if do_xml:
             firstChild.appendChild(new_stat._toxml())
         else:
-            print(new_stat())
+            gLogger.notice(new_stat())
         #statuses.append(status_j)
         #print new_stat.mydict.values()#_toxml()
     #print statuses
@@ -193,4 +189,4 @@ if __name__ == "__main__":
     # TODO:
         # pretty print & parse in java
     if do_xml:
-        print(xmlfile.toprettyxml())
+        gLogger.notice(xmlfile.toprettyxml())
