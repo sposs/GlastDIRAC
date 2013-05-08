@@ -2,7 +2,7 @@
 # S.Zimmer 10/2012 The Oskar Klein Center for Cosmoparticle Physics
 #TODO: replace glast.org with VO-agnostic call
 
-class options:
+class options(object):
     def __init__(self,DICT,**kwargs):
         self.release = None
         self.cpu = 64000
@@ -12,6 +12,7 @@ class options:
         self.debug = False
         self.env = None
         self.bannedSites = None
+        self.streamID = None
         self.__dict__.update(DICT)
         self.__dict__.update(kwargs)
 
@@ -94,12 +95,16 @@ if __name__ == "__main__":
         input_sandbox_files.append("jobmeta.inf") # that one is generated with every single job (or at least should be)
         j.setExecutable(executable)
 
-    j.setName("MC job")
+    j.setName("MC job") 
     if not opts.name is None:
         j.setName(opts.name)
 
     j.setInputSandbox(input_sandbox_files) # all input files in the sandbox
     j.setOutputSandbox(output_sandbox_files)
+    
+    #I suggest you use the streamID as that is somehow a "master jobID". Used in the monitoring loop. 
+    if opts.streamID:
+        j.setJobGroup("%s" % (opts.streamID))
 
     j.setCPUTime(opts.cpu)
     if not opts.site is None:

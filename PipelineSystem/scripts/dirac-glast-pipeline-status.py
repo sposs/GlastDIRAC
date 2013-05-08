@@ -125,11 +125,15 @@ if __name__ == "__main__":
     # look at deleted (may happen) 
     my_dict['Status']=['Completed','Stalled','Killed','Waiting','Running','Checking','Rescheduled','Matched']
     my_dict['Owner']=[user]
+
+    if "streamID" in specialOptions: #because maybe you want to check only the jobs that belong to a given stream...
+        my_dict['JobGroup'] = specialOptions['streamID']
+      
     if specialOptions.has_key("dayspassed"):
         delay = int(specialOptions["dayspassed"])
     else:
         delay = 3
-    delTime = str( Time.dateTime() - delay * Time.day )
+    delTime = str( Time.dateTime() - delay * Time.day )     
     res = w.getJobs(my_dict, delTime)
     
     if not res['OK']:
@@ -150,6 +154,7 @@ if __name__ == "__main__":
     statuses = []
     if not do_xml:
         gLogger.notice('# ID\thostname\tStatus\tSubmitted\tStarted\tEnded\tCPUtime\tMemory')
+        
     for j_list in job_list:
         status_j= status[int(j)]
         res = w.getJobParameters(int(j))
