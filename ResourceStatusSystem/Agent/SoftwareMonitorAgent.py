@@ -58,7 +58,7 @@ class SoftwareMonitorAgent(AgentModule):
         res = None
       
         if self.submitjobs:
-          res = self.submitProbeJobs(ce)
+          res = self.submitProbeJobs(tag, ce)
         else:
           res = self.swtc.updateCEStatus(tag, ce, 'Valid')
         
@@ -83,7 +83,7 @@ class SoftwareMonitorAgent(AgentModule):
             continue
     return S_OK()
   
-  def submitProbeJobs(self, ce):
+  def submitProbeJobs(self, tag, ce):
     """ Submit some jobs to the CEs
     """
     
@@ -91,21 +91,22 @@ class SoftwareMonitorAgent(AgentModule):
     
     from DIRAC.Interfaces.API.Dirac import Dirac
     d = Dirac()
-    from DIRAC.Interfaces.API.Job import Job
+    from GlastDIRAC.PipelineSystem.Interface.GlastJob import GlastJob
     
-    from DIRAC.ConfigurationSystem.Client.Helpers.Operations import Operations
-    import os
+    #from DIRAC.ConfigurationSystem.Client.Helpers.Operations import Operations
+    #import os
     
-    ops = Operations()
-    scriptname = ops.getValue("ResourceStatus/SofwareManagementScript", self.script)
+    #ops = Operations()
+    #scriptname = ops.getValue("ResourceStatus/SofwareManagementScript", self.script)
     
-    j = Job()
+    j = GlastJob()
     j.setDestinationCE(ce)
     j.setCPUTime(1000)
     j.setName("Probe %s" % ce)
     j.setJobGroup("SoftwareProbe")
-    j.setExecutable("%s/GlastDIRAC/ResourceStatusSystem/Client/%s" % (os.environ['DIRAC'],scriptname),
-                    logFile='SoftwareProbe.log')
+    #j.setExecutable("%s/GlastDIRAC/ResourceStatusSystem/Client/%s" % (os.environ['DIRAC'],scriptname),
+    #                logFile='SoftwareProbe.log')
+    j.addTagValidation(tag)
     j.setOutputSandbox('*.log')
     res = d.submit(j)
     if not res['OK']:
